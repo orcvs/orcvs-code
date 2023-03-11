@@ -87,44 +87,56 @@ connection.onInitialized( async () => {
 			connection.console.log('Workspace folder change event received.');
 		});
 	}
-	
+
 	await initOrcvs();
 });
 
 async function initOrcvs() {
 	console.info('Server.Orcvs', 'init');
 	await orcvs.setup();
-	await orcvs.setOutput('LoopMidi');  
-	await orcvs.start();
+	await orcvs.setOutput('LoopMidi');
 }
 
-connection.onNotification('orcvs.play', async ({ filename })=>{	
+connection.onNotification('orcvs.play', async ({ filename })=>{
 	console.info('Server.Orcvs', 'play', filename);
 	console.log({ filename });
-	await orcvs.load(filename);
-	
+	await orcvs.play(filename);
+	setTimeout(telemetry, 5000);
 });
 
-connection.onNotification('orcvs.pause', async () => {	
+async function telemetry() {
+	const { average, percentile } = await orcvs.telemetry();
+	connection.sendNotification("orcvs.telemetry", { average, percentile });
+	setTimeout(telemetry, 5000);
+}
+
+connection.onNotification('orcvs.pause', async () => {
 	console.info('Server.Orcvs', 'pause');
 	await orcvs.stop();
 });
 
+connection.onNotification('orcvs.stop', async () => {
+	console.info('Server.Orcvs', 'stop');
+	await orcvs.stop();
+	await orcvs.reset();
+});
+
 connection.onNotification('orcvs.reset', async()=>{
 	console.info('Server.Orcvs', 'reset');
-	orcvs.reset();
+	await  orcvs.reset();
 });
 
 connection.onNotification('orcvs.touch', async()=>{
 	console.info('Server.Orcvs', 'touch');
-	await orcvs.touch(); 
+	await orcvs.touch();
 });
 
-
-connection.onNotification('orcvs.setBPM', async ({ bpm }) => {	
+connection.onNotification('orcvs.setBPM', async ({ bpm }) => {
 	console.info('Server.Orcvs', 'setBPM');
-	await orcvs.setBPM(bpm);
+	await orcvs.bpm(bpm);
 });
+
+
 
 // The example settings
 interface Settings {
@@ -149,9 +161,6 @@ connection.onDidChangeConfiguration(change => {
 			(change.settings.languageServerExample || defaultSettings)
 		);
 	}
-
-	// Revalidate all open text documents
-	documents.all().forEach(validateTextDocument);
 });
 
 function getDocumentSettings(resource: string): Thenable<Settings> {
@@ -177,57 +186,10 @@ documents.onDidClose(e => {
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent(change => {
-	connection.console.log('orcvs.onDidChangeContent');
-	console.log('orcvs.onDidChangeContent');
-	validateTextDocument(change.document);
+	// connection.console.log('orcvs.onDidChangeContent');
+	// console.log('orcvs.onDidChangeContent');
+	// validateTextDocument(change.document);
 });
-
-async function validateTextDocument(textDocument: TextDocument): Promise<void> {
-	// In this simple example we get the settings for every validate run.
-	const settings = await getDocumentSettings(textDocument.uri);
-
-	// The validator creates diagnostics for all uppercase words length 2 and more
-	const text = textDocument.getText();
-	const pattern = /\b[A-Z]{2,}\b/g;
-	let m: RegExpExecArray | null;
-
-	let problems = 0;
-	const diagnostics: Diagnostic[] = [];
-	while ((m = pattern.exec(text)) && problems < settings.maxNumberOfProblems) {
-		problems++;
-		const diagnostic: Diagnostic = {
-			severity: DiagnosticSeverity.Warning,
-			range: {
-				start: textDocument.positionAt(m.index),
-				end: textDocument.positionAt(m.index + m[0].length)
-			},
-			message: `${m[0]} is all uppercase.`,
-			source: 'ex'
-		};
-		if (hasDiagnosticRelatedInformationCapability) {
-			diagnostic.relatedInformation = [
-				{
-					location: {
-						uri: textDocument.uri,
-						range: Object.assign({}, diagnostic.range)
-					},
-					message: 'Spelling matters'
-				},
-				{
-					location: {
-						uri: textDocument.uri,
-						range: Object.assign({}, diagnostic.range)
-					},
-					message: 'Particularly for names'
-				}
-			];
-		}
-		diagnostics.push(diagnostic);
-	}
-
-	// Send the computed diagnostics to VSCode.
-	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-}
 
 connection.onDidChangeWatchedFiles(_change => {
 	// Monitored files have change in VSCode
@@ -235,41 +197,41 @@ connection.onDidChangeWatchedFiles(_change => {
 	console.log(_change);
 });
 
-// This handler provides the initial list of the completion items.
-connection.onCompletion(
-	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
-		// The pass parameter contains the position of the text document in
-		// which code complete got requested. For the example we ignore this
-		// info and always provide the same completion items.
-		return [
-			{
-				label: 'Zaphod',
-				kind: CompletionItemKind.Text,
-				data: 1
-			},
-			{
-				label: 'JavaScript',
-				kind: CompletionItemKind.Text,
-				data: 2
-			}
-		];
-	}
-);
+// // This handler provides the initial list of the completion items.
+// connection.onCompletion(
+// 	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
+// 		// The pass parameter contains the position of the text document in
+// 		// which code complete got requested. For the example we ignore this
+// 		// info and always provide the same completion items.
+// 		return [
+// 			{
+// 				label: 'Zaphod',
+// 				kind: CompletionItemKind.Text,
+// 				data: 1
+// 			},
+// 			{
+// 				label: 'JavaScript',
+// 				kind: CompletionItemKind.Text,
+// 				data: 2
+// 			}
+// 		];
+// 	}
+// );
 
-// This handler resolves additional information for the item selected in
-// the completion list.
-connection.onCompletionResolve(
-	(item: CompletionItem): CompletionItem => {
-		if (item.data === 1) {
-			item.detail = 'Zaphod details';
-			item.documentation = 'Zaphod documentation';
-		} else if (item.data === 2) {
-			item.detail = 'JavaScript details';
-			item.documentation = 'JavaScript documentation';
-		}
-		return item;
-	}
-);
+// // This handler resolves additional information for the item selected in
+// // the completion list.
+// connection.onCompletionResolve(
+// 	(item: CompletionItem): CompletionItem => {
+// 		if (item.data === 1) {
+// 			item.detail = 'Zaphod details';
+// 			item.documentation = 'Zaphod documentation';
+// 		} else if (item.data === 2) {
+// 			item.detail = 'JavaScript details';
+// 			item.documentation = 'JavaScript documentation';
+// 		}
+// 		return item;
+// 	}
+// );
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events

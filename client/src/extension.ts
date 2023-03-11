@@ -4,7 +4,7 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as path from 'path';
-import { workspace, ExtensionContext, commands, window } from 'vscode';
+import { workspace, ExtensionContext, commands, window, StatusBarItem, StatusBarAlignment} from 'vscode';
 
 import {
 	LanguageClient,
@@ -14,8 +14,9 @@ import {
 } from 'vscode-languageclient/node';
 
 let client: LanguageClient;
+let statusBarItem: StatusBarItem;
 
-export function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
 
 
 	// The server is implemented in node
@@ -54,8 +55,21 @@ export function activate(context: ExtensionContext) {
 
 	activateCommands(client, context);
 
-	// Start the client. This will also launch the server
+	statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100);
+	updateStatusBarItem();
+
 	client.start();
+
+	await client.onReady();
+	client.onNotification('orcvs.telemetry', telemetry);
+}
+
+
+
+function telemetry({ average, percentile }: { average: string, percentile: string }) {
+	// console.log('orcvs.telemetry');
+	// logger.info({ tick: `${average}ms Average` });
+	updateStatusBarItem(`Tick: ${percentile}ms`);
 }
 
 // function activateCommands(client: LanguageClient, context: ExtensionContext) {
@@ -65,7 +79,7 @@ export function activate(context: ExtensionContext) {
 // 		// console.log(activeTextEditor);
 // 		const document = window.activeTextEditor.document;
 // 		console.log(document.fileName);
-		
+
 // 		client.sendNotification('orcvs.run', { filename: document.fileName });
 // 		window.showInformationMessage('Hello World from orcvscode!');
 // 	});
@@ -80,26 +94,32 @@ function play() {
 		// const activeTextEditor = window.activeTextEditor;
 		// console.log(activeTextEditor);
 		const document = window.activeTextEditor.document;
-		
+
 		console.info('orcvs.play', document.fileName);
-		
+
 		client.sendNotification('orcvs.play', { filename: document.fileName });
 		window.showInformationMessage(`${orcvs} Play`);
 }
 
-function pause() {	
+function pause() {
 	console.info('orcvs.pause');
 	client.sendNotification('orcvs.pause');
 	window.showInformationMessage(`${orcvs} Pause`);
 }
 
-function reset() {	
+function stop() {
+	console.info('orcvs.stop');
+	client.sendNotification('orcvs.stop');
+	window.showInformationMessage(`${orcvs} Stop`);
+}
+
+function reset() {
 	console.info('orcvs.reset');
 	client.sendNotification('orcvs.reset');
 	window.showInformationMessage(`${orcvs} Reset`);
 }
 
-function tick() {	
+function tick() {
 	console.info('orcvs.tick');
 	client.sendNotification('orcvs.tick');
 	window.showInformationMessage(`${orcvs} Tick`);
@@ -107,7 +127,7 @@ function tick() {
 
 let bpm = 120;
 
-async function  setBPM() {	
+async function setBPM() {
 	console.info('orcvs.setBpm');
 	bpm = await showInputBox();
 	client.sendNotification('orcvs.setBpm');
@@ -118,7 +138,7 @@ export async function showInputBox() {
 	const result = await window.showInputBox({
 		value: bpm.toString(),
 		validateInput: (text) => {
-			const bpm = parseInt(text);		
+			const bpm = parseInt(text);
 			const inRange = bpm >= 60 && bpm <= 220;
 			return inRange? null : 'BPM should be between 60-220';
 		}
@@ -129,6 +149,7 @@ export async function showInputBox() {
 const orcvsCommands:{ [name: string]: CommandHandler} = {
 	'orcvs.play': play,
 	'orcvs.pause': pause,
+	'orcvs.stop': stop,
 	'orcvs.reset': reset,
 	'orcvs.tick': tick,
 	'orcvs.setBpm': setBPM,
@@ -140,7 +161,11 @@ function activateCommands(client: LanguageClient, context: ExtensionContext) {
 		const disposable = commands.registerCommand(command, handler);
 		context.subscriptions.push(disposable);
 	}
+}
 
+function updateStatusBarItem(msg = orcvs): void {
+	statusBarItem.text = msg;
+	statusBarItem.show();
 }
 
 export function deactivate(): Thenable<void> | undefined {

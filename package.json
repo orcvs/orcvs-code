@@ -2,7 +2,7 @@
 	"name": "orcvscode",
 	"description": "o̶͎͓̜̮͘r̶̼̀̿͗c̵̡̮̮̀v̶̼͂s̵̞͙̅̒̋ͅ' Language Server",
 	"version": "1.0.0",
-	"categories": [],
+	"categories": ["Snippets"],
 	"keywords": [
 		"multi-root ready"
 	],
@@ -12,7 +12,7 @@
 	"activationEvents": [
 		"*"
 	],
-	"main": "./client/out/extension",  
+	"main": "./client/out/extension",
 	"contributes": {
 		"commands": [
 			{
@@ -36,6 +36,43 @@
 				"title": "Orcvs Set BPM"
 			}
 		],
+		"keybindings": [
+      {
+        "command": "orcvs.play",
+        "key": "ctrl+o ctrl+p",
+        "mac": "cmd+o cmd+p",
+        "when": "editorTextFocus"
+      },
+			{
+        "command": "orcvs.pause",
+        "key": "ctrl+o ctrl+shift+p",
+        "mac": "cmd+o cmd+shift+p",
+        "when": "editorTextFocus"
+      },
+
+			{
+        "command": "orcvs.setBPM",
+        "key": "ctrl+o ctrl+b",
+        "mac": "cmd+o cmd+b",
+        "when": "editorTextFocus"
+      },
+			{
+				"key": "alt+p",
+				"command": "editor.action.insertSnippet",
+				"when": "editorTextFocus",
+				"args": {
+					"snippet": "▮"
+				}
+			},
+			{
+				"key": "alt+o",
+				"command": "editor.action.insertSnippet",
+				"when": "editorTextFocus",
+				"args": {
+					"snippet": "▯"
+				}
+			}
+    ],
 		"configuration": {
 			"type": "object",
 			"title": "Example configuration",
@@ -58,7 +95,13 @@
 					"description": "Traces the communication between VS Code and the language server."
 				}
 			}
-		}
+		},
+		"snippets": [
+			{
+				"language": "typescript",
+				"path": "./snippets.json"
+			}
+		]
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
@@ -76,5 +119,8 @@
 		"eslint": "^8.26.0",
 		"mocha": "^9.2.1",
 		"typescript": "^4.9.4"
+	},
+	"dependencies": {
+		"orcvs": "file:../Orcvs"
 	}
 }

@@ -1,0 +1,20 @@
+{
+	"ptn": {
+		"prefix": "ptn",
+		"body": [
+			"ptn('$1', () => {",
+			"$2",
+			");"
+		],
+		"description": "ptn pulsar"
+	},
+	"at": {
+		"prefix": "at",
+		"body": [
+			"at('$1', () => {",
+			"$2",
+			");"
+		],
+		"description": "at pulsar"
+	}
+}
