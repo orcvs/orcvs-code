@@ -77,11 +77,11 @@
 			"type": "object",
 			"title": "Example configuration",
 			"properties": {
-				"languageServerExample.maxNumberOfProblems": {
+				"languageServerExample.telemeteryTimeout": {
 					"scope": "resource",
 					"type": "number",
-					"default": 100,
-					"description": "Controls the maximum number of problems produced by the server."
+					"default": 20000,
+					"description": "Controls the timeout for checking Orcvs telemetry."
 				},
 				"languageServerExample.trace.server": {
 					"scope": "window",

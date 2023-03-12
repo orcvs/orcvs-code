@@ -27,7 +27,6 @@ import {
 
 const ORCVS = 'O̴̫͉͌r̸̘͉̫̣̐̈́͊c̶̛̪̖̻͔̈́̃̓v̷̨͎̿͝ŝ̷̩͑̾';
 
-
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
 const connection = createConnection(ProposedFeatures.all);
@@ -77,6 +76,22 @@ connection.onInitialize((params: InitializeParams) => {
 	return result;
 });
 
+interface Settings {
+	telemetryTimeout: number;
+}
+
+// The global settings, used when the `workspace/configuration` request is not supported by the client.
+// Please note that this is not the case when using this server with the client provided in this example
+// but could happen with other clients.
+const defaultSettings: Settings = { telemetryTimeout: 20000 };
+let globalSettings: Settings = defaultSettings;
+
+connection.onDidChangeConfiguration(change => {
+	globalSettings = <Settings>(
+		(change.settings.languageServerExample || defaultSettings)
+	);
+});
+
 connection.onInitialized( async () => {
 	if (hasConfigurationCapability) {
 		// Register for all configuration changes.
@@ -95,19 +110,32 @@ async function initOrcvs() {
 	console.info('Server.Orcvs', 'init');
 	await orcvs.setup();
 	await orcvs.setOutput('LoopMidi');
+	sendMessage('Output: LoopMidi');
 }
 
 connection.onNotification('orcvs.play', async ({ filename })=>{
 	console.info('Server.Orcvs', 'play', filename);
-	console.log({ filename });
 	await orcvs.play(filename);
-	setTimeout(telemetry, 5000);
+	sendMessage('Playing');
+	setTimeout(telemetry, globalSettings.telemetryTimeout);
+	setTimeout(frame, 1000);
+
 });
 
 async function telemetry() {
 	const { average, percentile } = await orcvs.telemetry();
 	connection.sendNotification("orcvs.telemetry", { average, percentile });
-	setTimeout(telemetry, 5000);
+	setTimeout(telemetry, globalSettings.telemetryTimeout);
+}
+
+async function frame() {
+	const f = orcvs.frame();
+	connection.sendNotification("orcvs.frame", f);
+	setTimeout(frame, 500);
+}
+
+async function sendMessage(msg: string) {
+	connection.sendNotification("orcvs.message", msg);
 }
 
 connection.onNotification('orcvs.pause', async () => {
@@ -134,53 +162,6 @@ connection.onNotification('orcvs.touch', async()=>{
 connection.onNotification('orcvs.setBPM', async ({ bpm }) => {
 	console.info('Server.Orcvs', 'setBPM');
 	await orcvs.bpm(bpm);
-});
-
-
-
-// The example settings
-interface Settings {
-	maxNumberOfProblems: number;
-}
-
-// The global settings, used when the `workspace/configuration` request is not supported by the client.
-// Please note that this is not the case when using this server with the client provided in this example
-// but could happen with other clients.
-const defaultSettings: Settings = { maxNumberOfProblems: 1000 };
-let globalSettings: Settings = defaultSettings;
-
-// Cache the settings of all open documents
-const documentSettings: Map<string, Thenable<Settings>> = new Map();
-
-connection.onDidChangeConfiguration(change => {
-	if (hasConfigurationCapability) {
-		// Reset all cached document settings
-		documentSettings.clear();
-	} else {
-		globalSettings = <Settings>(
-			(change.settings.languageServerExample || defaultSettings)
-		);
-	}
-});
-
-function getDocumentSettings(resource: string): Thenable<Settings> {
-	if (!hasConfigurationCapability) {
-		return Promise.resolve(globalSettings);
-	}
-	let result = documentSettings.get(resource);
-	if (!result) {
-		result = connection.workspace.getConfiguration({
-			scopeUri: resource,
-			section: 'languageServerExample'
-		});
-		documentSettings.set(resource, result);
-	}
-	return result;
-}
-
-// Only keep settings for open documents
-documents.onDidClose(e => {
-	documentSettings.delete(e.document.uri);
 });
 
 // The content of a text document has changed. This event is emitted

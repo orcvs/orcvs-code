@@ -4,7 +4,7 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as path from 'path';
-import { workspace, ExtensionContext, commands, window, StatusBarItem, StatusBarAlignment} from 'vscode';
+import { workspace, ExtensionContext, commands, window, StatusBarItem, StatusBarAlignment, ProgressLocation, Progress } from 'vscode';
 
 import {
 	LanguageClient,
@@ -14,7 +14,8 @@ import {
 } from 'vscode-languageclient/node';
 
 let client: LanguageClient;
-let statusBarItem: StatusBarItem;
+let telemeteryStatusBarItem: StatusBarItem;
+let frameStatusBarItem: StatusBarItem;
 
 export async function activate(context: ExtensionContext) {
 
@@ -55,22 +56,29 @@ export async function activate(context: ExtensionContext) {
 
 	activateCommands(client, context);
 
-	statusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100);
-	updateStatusBarItem();
+	telemeteryStatusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100);
+	frameStatusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 100);
+
+	updateTelemetryStatusBarItem();
 
 	client.start();
 
 	await client.onReady();
-	client.onNotification('orcvs.telemetry', telemetry);
+	client.onNotification('orcvs.telemetry', showTelemetry);
+	client.onNotification('orcvs.message', showMessage);
+	client.onNotification('orcvs.frame', showFrameCount);
 }
 
-
-
-function telemetry({ average, percentile }: { average: string, percentile: string }) {
+function showTelemetry({ average, percentile }: { average: string, percentile: string }) {
 	// console.log('orcvs.telemetry');
 	// logger.info({ tick: `${average}ms Average` });
-	updateStatusBarItem(`Tick: ${percentile}ms`);
+	updateTelemetryStatusBarItem(`Tick: ${percentile}ms`);
 }
+
+// function message(msg: string) {
+// 	// updateTelemetryStatusBarItem(msg);
+// 	window.showInformationMessage(`${orcvs} ${msg}`);
+// }
 
 // function activateCommands(client: LanguageClient, context: ExtensionContext) {
 // 	const disposable = commands.registerCommand('orcvscode.helloWorld', () => {
@@ -98,31 +106,62 @@ function play() {
 		console.info('orcvs.play', document.fileName);
 
 		client.sendNotification('orcvs.play', { filename: document.fileName });
-		window.showInformationMessage(`${orcvs} Play`);
+		// window.showInformationMessage(`${orcvs} Play`);
+
+		showMessage('Play');
+}
+
+// await showMessage(progress, 'Play');
+// async function showMessage(progress: Progress<{message: string, increment: number}>, message: string, increment = 1) {
+// 	console.log({increment});
+// 	if (increment < 5) {
+// 		progress.report({ increment: increment * 20, message});
+// 		setTimeout(() => {
+// 			showMessage(progress, message, increment + 1);
+// 		}, 1000);
+// 	}
+// }
+
+async function showMessage(msg: string) {
+	window.withProgress(
+		{
+			location: ProgressLocation.Notification,
+			title: `${orcvs} ${msg}`,
+			cancellable: false,
+		},
+		async (progress, token) => {
+			progress.report({ increment: 99 });
+			await new Promise( (r) => setTimeout(r, 2500));
+		}
+	);
 }
 
 function pause() {
 	console.info('orcvs.pause');
 	client.sendNotification('orcvs.pause');
-	window.showInformationMessage(`${orcvs} Pause`);
+	// window.showInformationMessage(`${orcvs} Pause`);
+	showMessage('Pause');
 }
 
 function stop() {
 	console.info('orcvs.stop');
 	client.sendNotification('orcvs.stop');
-	window.showInformationMessage(`${orcvs} Stop`);
+	// window.showInformationMessage(`${orcvs} Stop`);
+	showMessage('Stop');
 }
 
 function reset() {
 	console.info('orcvs.reset');
 	client.sendNotification('orcvs.reset');
-	window.showInformationMessage(`${orcvs} Reset`);
+	// window.showInformationMessage(`${orcvs} Reset`);
+	showMessage('Reset');
 }
 
 function tick() {
 	console.info('orcvs.tick');
 	client.sendNotification('orcvs.tick');
-	window.showInformationMessage(`${orcvs} Tick`);
+	// window.showInformationMessage(`${orcvs} Tick`);
+	// showMessage('Tick');
 }
 
 let bpm = 120;
@@ -131,7 +170,8 @@ async function setBPM() {
 	console.info('orcvs.setBpm');
 	bpm = await showInputBox();
 	client.sendNotification('orcvs.setBpm');
-	window.showInformationMessage(`${orcvs} Set BPM ${bpm}`);
+	// window.showInformationMessage(`${orcvs} Set BPM ${bpm}`);
+	showMessage(`Set BPM ${bpm}`);
 }
 
 export async function showInputBox() {
@@ -163,9 +203,39 @@ function activateCommands(client: LanguageClient, context: ExtensionContext) {
 	}
 }
 
-function updateStatusBarItem(msg = orcvs): void {
-	statusBarItem.text = msg;
-	statusBarItem.show();
+function updateTelemetryStatusBarItem(msg = orcvs): void {
+	telemeteryStatusBarItem.text = msg;
+	telemeteryStatusBarItem.show();
+}
+
+function updateFrameStatusBarItem(frame = 0): void {
+	frameStatusBarItem.text = `BPM ${bpm} / Frame ${frame}`;
+	frameStatusBarItem.show();
+}
+
+let _incrementing = false;
+let _frame = 0;
+
+function showFrameCount(frame): void {
+	_frame = frame;
+	updateFrameStatusBarItem(frame);
+
+	if (!_incrementing) {
+		incrementFrameCount();
+		_incrementing = true;
+	}
+}
+
+function incrementFrameCount() {
+	updateFrameStatusBarItem(_frame + 1);
+	setTimeout(incrementFrameCount, msPerBeat());
+}
+
+const MINUTE = 60000;
+const FRAMES_PER_BEAT = 4;
+
+export function msPerBeat() {
+  return ( MINUTE  / bpm) / FRAMES_PER_BEAT;
 }
 
 export function deactivate(): Thenable<void> | undefined {
