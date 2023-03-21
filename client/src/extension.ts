@@ -3,6 +3,7 @@
  * Licensed under the MIT License. See License.txt in the project root for license information.
  * ------------------------------------------------------------------------------------------ */
 
+import { clear } from 'console';
 import * as path from 'path';
 import { workspace, ExtensionContext, commands, window, StatusBarItem, StatusBarAlignment, ProgressLocation, Progress } from 'vscode';
 
@@ -16,6 +17,8 @@ import {
 let client: LanguageClient;
 let telemeteryStatusBarItem: StatusBarItem;
 let frameStatusBarItem: StatusBarItem;
+
+let _bpm = 120;
 
 export async function activate(context: ExtensionContext) {
 
@@ -66,11 +69,11 @@ export async function activate(context: ExtensionContext) {
 	await client.onReady();
 	client.onNotification('orcvs.telemetry', showTelemetry);
 	client.onNotification('orcvs.message', showMessage);
-	client.onNotification('orcvs.frame', showFrameCount);
+	client.onNotification('orcvs.clock', syncClock);
 }
 
 function showTelemetry({ average, percentile }: { average: string, percentile: string }) {
-	// console.log('orcvs.telemetry');
+	console.log('orcvs.telemetry');
 	// logger.info({ tick: `${average}ms Average` });
 	updateTelemetryStatusBarItem(`Tick: ${percentile}ms`);
 }
@@ -111,17 +114,6 @@ function play() {
 		showMessage('Play');
 }
 
-// await showMessage(progress, 'Play');
-// async function showMessage(progress: Progress<{message: string, increment: number}>, message: string, increment = 1) {
-// 	console.log({increment});
-// 	if (increment < 5) {
-// 		progress.report({ increment: increment * 20, message});
-// 		setTimeout(() => {
-// 			showMessage(progress, message, increment + 1);
-// 		}, 1000);
-// 	}
-// }
-
 async function showMessage(msg: string) {
 	window.withProgress(
 		{
@@ -150,6 +142,13 @@ function stop() {
 	showMessage('Stop');
 }
 
+function restart() {
+	console.info('orcvs.reset');
+	client.sendNotification('orcvs.restart');
+	// window.showInformationMessage(`${orcvs} Reset`);
+	showMessage('Restart');
+}
+
 function reset() {
 	console.info('orcvs.reset');
 	client.sendNotification('orcvs.reset');
@@ -164,19 +163,17 @@ function tick() {
 	// showMessage('Tick');
 }
 
-let bpm = 120;
-
 async function setBPM() {
 	console.info('orcvs.setBpm');
-	bpm = await showInputBox();
+	_bpm = await showInputBox();
 	client.sendNotification('orcvs.setBpm');
 	// window.showInformationMessage(`${orcvs} Set BPM ${bpm}`);
-	showMessage(`Set BPM ${bpm}`);
+	showMessage(`Set BPM ${_bpm}`);
 }
 
 export async function showInputBox() {
 	const result = await window.showInputBox({
-		value: bpm.toString(),
+		value: _bpm.toString(),
 		validateInput: (text) => {
 			const bpm = parseInt(text);
 			const inRange = bpm >= 60 && bpm <= 220;
@@ -190,13 +187,13 @@ const orcvsCommands:{ [name: string]: CommandHandler} = {
 	'orcvs.play': play,
 	'orcvs.pause': pause,
 	'orcvs.stop': stop,
+	'orcvs.restart': restart,
 	'orcvs.reset': reset,
 	'orcvs.tick': tick,
 	'orcvs.setBpm': setBPM,
 };
 
 function activateCommands(client: LanguageClient, context: ExtensionContext) {
-
 	for (const [command, handler] of Object.entries(orcvsCommands)) {
 		const disposable = commands.registerCommand(command, handler);
 		context.subscriptions.push(disposable);
@@ -208,34 +205,22 @@ function updateTelemetryStatusBarItem(msg = orcvs): void {
 	telemeteryStatusBarItem.show();
 }
 
-function updateFrameStatusBarItem(frame = 0): void {
-	frameStatusBarItem.text = `BPM ${bpm} / Frame ${frame}`;
+function updateFrameStatusBarItem(frame: number): void {
+	frameStatusBarItem.text = `BPM ${_bpm} / Frame ${frame}`;
 	frameStatusBarItem.show();
 }
 
-let _incrementing = false;
-let _frame = 0;
-
-function showFrameCount(frame): void {
-	_frame = frame;
-	updateFrameStatusBarItem(frame);
-
-	if (!_incrementing) {
-		incrementFrameCount();
-		_incrementing = true;
+function syncClock({ frame = 0, bpm }: { frame: number, bpm: number }) {
+	if (bpm !== _bpm) {
+		_bpm = bpm;
 	}
+	updateFrameStatusBarItem(frame);
 }
-
-function incrementFrameCount() {
-	updateFrameStatusBarItem(_frame + 1);
-	setTimeout(incrementFrameCount, msPerBeat());
-}
-
 const MINUTE = 60000;
 const FRAMES_PER_BEAT = 4;
 
 export function msPerBeat() {
-  return ( MINUTE  / bpm) / FRAMES_PER_BEAT;
+  return ( MINUTE  / _bpm) / FRAMES_PER_BEAT;
 }
 
 export function deactivate(): Thenable<void> | undefined {

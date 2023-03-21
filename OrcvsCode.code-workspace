@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"typescript.tsc.autoDetect": "off",
+		"ipynb.pasteImagesAsAttachments.enabled": false,
+		"github.gitAuthentication": false,
+		"php.suggest.basic": false
+	}
+}

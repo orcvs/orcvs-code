@@ -31,7 +31,7 @@ const ORCVS = 'O̴̫͉͌r̸̘͉̫̣̐̈́͊c̶̛̪̖̻͔̈́̃̓v̷̨͎̿͝ŝ̷͑̾
 // Also include all preview / proposed LSP features.
 const connection = createConnection(ProposedFeatures.all);
 
-const orcvs = Orcvs();
+let orcvs = Orcvs();
 
 // Create a simple text document manager.
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -78,12 +78,13 @@ connection.onInitialize((params: InitializeParams) => {
 
 interface Settings {
 	telemetryTimeout: number;
+	clockTimeout: number;
 }
 
 // The global settings, used when the `workspace/configuration` request is not supported by the client.
 // Please note that this is not the case when using this server with the client provided in this example
 // but could happen with other clients.
-const defaultSettings: Settings = { telemetryTimeout: 20000 };
+const defaultSettings: Settings = { telemetryTimeout: 20000, clockTimeout: 150};
 let globalSettings: Settings = defaultSettings;
 
 connection.onDidChangeConfiguration(change => {
@@ -113,25 +114,32 @@ async function initOrcvs() {
 	sendMessage('Output: LoopMidi');
 }
 
+let _telemetryTimer: NodeJS.Timer;
+let _clockTimer: NodeJS.Timer;
+
 connection.onNotification('orcvs.play', async ({ filename })=>{
 	console.info('Server.Orcvs', 'play', filename);
 	await orcvs.play(filename);
+	_telemetryTimer = setInterval(telemetry, globalSettings.telemetryTimeout);
+	_clockTimer = setInterval(clock, globalSettings.clockTimeout);
 	sendMessage('Playing');
-	setTimeout(telemetry, globalSettings.telemetryTimeout);
-	setTimeout(frame, 1000);
-
 });
 
 async function telemetry() {
+	console.info('Server.Orcvs', 'telemetry');
 	const { average, percentile } = await orcvs.telemetry();
 	connection.sendNotification("orcvs.telemetry", { average, percentile });
-	setTimeout(telemetry, globalSettings.telemetryTimeout);
 }
 
-async function frame() {
-	const f = orcvs.frame();
-	connection.sendNotification("orcvs.frame", f);
-	setTimeout(frame, 500);
+async function clock() {
+	const frame = orcvs.frame();
+	const bpm = orcvs.bpm();
+	connection.sendNotification("orcvs.clock", { frame, bpm });
+}
+
+function clear() {
+	clearInterval(_telemetryTimer);
+	clearInterval(_clockTimer);
 }
 
 async function sendMessage(msg: string) {
@@ -140,18 +148,27 @@ async function sendMessage(msg: string) {
 
 connection.onNotification('orcvs.pause', async () => {
 	console.info('Server.Orcvs', 'pause');
+	clear();
 	await orcvs.stop();
 });
 
 connection.onNotification('orcvs.stop', async () => {
 	console.info('Server.Orcvs', 'stop');
+	clear();
 	await orcvs.stop();
 	await orcvs.reset();
 });
 
 connection.onNotification('orcvs.reset', async()=>{
 	console.info('Server.Orcvs', 'reset');
-	await  orcvs.reset();
+	await orcvs.reset();
+});
+
+connection.onNotification('orcvs.restart', async()=>{
+	console.info('Server.Orcvs', 'restart');
+	clear();
+	orcvs = Orcvs();
+	await initOrcvs();
 });
 
 connection.onNotification('orcvs.touch', async()=>{

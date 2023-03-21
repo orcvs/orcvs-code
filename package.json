@@ -10,7 +10,8 @@
 		"vscode": "^1.75.0"
 	},
 	"activationEvents": [
-		"*"
+		"onLanguage:typescript",
+		"onLanguage:javascript"
 	],
 	"main": "./client/out/extension",
 	"contributes": {
@@ -37,6 +38,12 @@
 			}
 		],
 		"keybindings": [
+			{
+        "command": "orcvs.pause",
+        "key": "ctrl+o ctrl+shift+p",
+        "mac": "cmd+o cmd+shift+p",
+        "when": "editorTextFocus"
+      },
       {
         "command": "orcvs.play",
         "key": "ctrl+o ctrl+p",
@@ -44,12 +51,17 @@
         "when": "editorTextFocus"
       },
 			{
-        "command": "orcvs.pause",
-        "key": "ctrl+o ctrl+shift+p",
-        "mac": "cmd+o cmd+shift+p",
+        "command": "orcvs.restart",
+        "key": "ctrl+o ctrl+shift+r",
+        "mac": "cmd+o ctrl+shift+r",
         "when": "editorTextFocus"
       },
-
+			{
+        "command": "orcvs.reset",
+        "key": "ctrl+o ctrl+r",
+        "mac": "cmd+o cmd+r",
+        "when": "editorTextFocus"
+      },
 			{
         "command": "orcvs.setBPM",
         "key": "ctrl+o ctrl+b",
